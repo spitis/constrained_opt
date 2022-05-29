@@ -1,3 +1,4 @@
+from distutils.config import DEFAULT_PYPIRC
 import matplotlib.pyplot as plt
 from matplotlib import animation
 from IPython.display import HTML
@@ -19,6 +20,32 @@ ALPHAS = np.array([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9])
 #   r = 2 + (y**2)**0.6 # radius of loss
 #   theta = jax.nn.sigmoid(x) * np.pi/2 # angle of loss
 #   return r*np.cos(theta), r*np.sin(theta)
+
+MOGUL_CENTERS = np.concatenate([
+  np.linspace(np.array([0.7, -0.2]), np.array([-0.2, 0.7]), 9),
+  np.linspace(np.array([0.9, -0.2]), np.array([-0.2, 0.9]), 12),
+  np.linspace(np.array([1.1, -0.2]), np.array([-0.2, 1.1]), 13)
+])
+
+RADIUS = 0.045
+DEFAULT_TARGET = np.array([0,0])
+
+def loss_moguls(xy, target=DEFAULT_TARGET):
+
+
+  base_loss = np.linalg.norm(xy - target, axis=-1)
+  mogul_centers = MOGUL_CENTERS + (target / 3.)
+  max_bonus = np.linalg.norm(mogul_centers - target, axis=1) / 3
+
+
+  # Jagged bonus
+  dists = np.linalg.norm(xy[None] - mogul_centers, axis=-1)
+  dists = np.where(dists > RADIUS, 1000., dists)
+  bonus = 0.1 / (dists + 0.1) # batch x num_jagged_points
+  
+  bonus *= max_bonus
+
+  return base_loss - np.maximum(0., bonus.max())
 
 
 def loss_convex(x, y):

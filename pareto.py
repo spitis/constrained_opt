@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 from matplotlib import animation
-from matplotlib.colors import LogNorm
 from IPython.display import HTML
 
 import jax
@@ -10,13 +9,16 @@ import numpy as onp
 xmin, xmax, xstep = 0, 3, 0.1
 ymin, ymax, ystep = 0, 3, 0.1
 
+# initial parameter. roughly: (angle, radius)
 INIT_POINT = (0.1, 1.7)
+
+# Target loss
 ALPHAS = np.array([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9])
 
-def loss_concave(x, y):
-  r = 2 + (y**2)**0.6 # radius of loss
-  theta = jax.nn.sigmoid(x) * np.pi/2 # angle of loss
-  return r*np.cos(theta), r*np.sin(theta)
+# def loss_concave(x, y):
+#   r = 2 + (y**2)**0.6 # radius of loss
+#   theta = jax.nn.sigmoid(x) * np.pi/2 # angle of loss
+#   return r*np.cos(theta), r*np.sin(theta)
 
 
 def loss_convex(x, y):
@@ -26,6 +28,28 @@ def loss_convex(x, y):
   norm = (vx**0.5 + vy**0.5)**2
   return 2.2 * r * vx / norm, 2.2 * r * vy / norm
 
+def loss_concave(x, y):
+  r = 1.5 + y**2 # radius of loss
+  theta_prop = jax.nn.sigmoid(x) 
+  theta = theta_prop * np.pi/2 # angle of loss
+
+  vx, vy = np.cos(theta), np.sin(theta)
+  
+  r_old = r
+  r = np.where(0.3 < theta_prop, np.where(theta_prop < 0.7, r+np.abs(theta_prop - 0.5)*2+0.2/(y**2 + 1e-4), r), r)
+
+  norm = (vx**0.5 + vy**0.5)**2
+
+  loss1 = 2.2 * r * vx / norm
+  loss2 = 2.2 * r * vy / norm
+
+  r = np.where(y**2 < 0.3, np.where(0.3 < theta_prop, np.where(theta_prop < 0.7, r_old, r), r), r)
+
+  loss1 = 2.2 * r * vx / norm
+  loss2 = 2.2 * r * vy / norm
+
+  return loss1, loss2
+  
 def plot_paths(paths, titles=None):
     path_liness = []
     path_pointss = []
@@ -78,9 +102,12 @@ def plot_paths(paths, titles=None):
     return fig, anim
 
 def plot_loss(ax, paths=None):
-    x, y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
-    z = x + y
-    ax.contourf(x, y, z, alpha=0.15, levels=np.linspace(0., 10., 100), cmap=plt.cm.jet, antialiased=True, extend='both')
+    x, y = np.meshgrid(np.arange(-2, 2, 0.01), np.arange(-3, 3, 0.01))
+    loss_vec = jax.jit(jax.vmap(loss_concave, in_axes=[0,0]))
+    a , b = loss_vec(x, y)
+    z = a + b
+    #z = x + y
+    ax.contourf(a, b, z, alpha=0.15, levels=np.linspace(0., 10., 100), cmap=plt.cm.jet, antialiased=True, extend='both')
     path_lines = []
     path_points = []
     if paths is not None:

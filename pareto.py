@@ -7,14 +7,23 @@ import jax
 import jax.numpy as np
 import numpy as onp
 
-xmin, xmax, xstep = 0, 3, 0.1
-ymin, ymax, ystep = 0, 3, 0.1
+xmin, xmax, xstep = -0.05, 1.35, 0.1
+ymin, ymax, ystep = -0.05, 1.35, 0.1
 
 # initial parameter. roughly: (angle, radius)
-INIT_POINT = (0.1, 1.7)
+INIT_THETAS = np.concatenate([
+  np.linspace(np.array([1.2, 0.3]), np.array([1.2, 1.1]), 4),
+  np.linspace(np.array([1.1, 1.2]), np.array([0.3, 1.2]), 4),
+  np.linspace(np.array([1.25, 0.6]), np.array([0.6, 1.25]), 8)
+])
 
 # Target loss
-ALPHAS = np.array([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9])
+ALPHAS = np.concatenate([
+  np.linspace(np.array([0.3, 0.]), np.array([0., 0.]), 4),
+  np.linspace(np.array([0., 0.]), np.array([0., 0.3]), 4),
+  np.linspace(np.array([0.3, 0.]), np.array([0., 0.]), 4),
+  np.linspace(np.array([0., 0.]), np.array([0., 0.3]), 4)
+])
 
 # def loss_concave(x, y):
 #   r = 2 + (y**2)**0.6 # radius of loss
@@ -27,7 +36,7 @@ MOGUL_CENTERS = np.concatenate([
   np.linspace(np.array([1.1, -0.2]), np.array([-0.2, 1.1]), 13)
 ])
 
-RADIUS = 0.045
+RADIUS = 0.05
 DEFAULT_TARGET = np.array([0,0])
 
 def loss_moguls(xy, target=DEFAULT_TARGET):
@@ -77,7 +86,7 @@ def loss_concave(x, y):
 
   return loss1, loss2
   
-def plot_paths(paths, titles=None):
+def plot_paths(paths, titles=None, anim_interval=30):
     path_liness = []
     path_pointss = []
     num_row = len(paths) // 2 or 1
@@ -123,18 +132,19 @@ def plot_paths(paths, titles=None):
     plt.show()
       
     anim = animation.FuncAnimation(fig, animate, init_func=init,
-                                  frames=paths[0].shape[-1], interval=30, 
+                                  frames=paths[0].shape[-1], interval=anim_interval, 
                                   repeat_delay=5, blit=True)
 
     return fig, anim
 
 def plot_loss(ax, paths=None):
-    x, y = np.meshgrid(np.arange(-2, 2, 0.01), np.arange(-3, 3, 0.01))
-    loss_vec = jax.jit(jax.vmap(loss_concave, in_axes=[0,0]))
-    a , b = loss_vec(x, y)
-    z = a + b
-    #z = x + y
-    ax.contourf(a, b, z, alpha=0.15, levels=np.linspace(0., 10., 100), cmap=plt.cm.jet, antialiased=True, extend='both')
+    alpha = np.array([0.,0.])
+    x, y = np.meshgrid(np.arange(-.05, 1.4, 0.01), np.arange(-0.05, 1.4, 0.01))
+    loss_vec = jax.jit(jax.vmap(loss_moguls, in_axes=[0,None]))
+    z = loss_vec(np.stack((x.flatten(), y.flatten()), 1), alpha).reshape(x.shape)
+
+    ax.contourf(x, y, z, alpha=0.3, levels=np.linspace(0., 1.5, 100), cmap=plt.cm.jet, antialiased=True, extend='both')
+    #ax.contourf(a, b, z, alpha=0.15, levels=np.linspace(0., 10., 100), cmap=plt.cm.jet, antialiased=True, extend='both')
     path_lines = []
     path_points = []
     if paths is not None:
@@ -153,5 +163,8 @@ def plot_loss(ax, paths=None):
 
     ax.set_xlim((xmin, xmax))
     ax.set_ylim((ymin, ymax))
+
+    ax.axvline(x=0, lw=2, alpha=0.5, color='gray')
+    ax.axhline(y=0, lw=2, alpha=0.5, color='gray')
 
     return path_lines, path_points
